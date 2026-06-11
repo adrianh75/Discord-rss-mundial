@@ -16,7 +16,7 @@ jobs:
     - name: Configurar Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '22' # Forzamos Node 22 para romper la caché vieja
 
     - name: Instalar dependencias
       run: npm install axios
@@ -25,3 +25,4 @@ jobs:
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: node index.js
+
