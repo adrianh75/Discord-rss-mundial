@@ -89,11 +89,10 @@ async function sendDiscordEmbed(data) {
 }
 
 async function main() {
-  // Hace dos ráfagas rápidas de consulta dentro del mismo minuto de ejecución
-  await checkLiveScores();
-  await new Promise(resolve => setTimeout(resolve, 25000));
+  console.log("Iniciando escaneo de partidos...");
   await checkLiveScores();
 }
 
 main();
+
 
