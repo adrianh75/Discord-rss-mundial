@@ -5,6 +5,10 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
+# Forzamos globalmente que todas las acciones de JavaScript usen Node 24 internamente
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   check-scores:
     runs-on: ubuntu-latest
@@ -16,7 +20,7 @@ jobs:
     - name: Configurar Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22' # Forzamos Node 22 para romper la caché vieja
+        node-version: '24'
 
     - name: Instalar dependencias
       run: npm install axios
@@ -25,4 +29,3 @@ jobs:
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: node index.js
-
