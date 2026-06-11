@@ -5,7 +5,7 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
-# Forzamos globalmente que todas las acciones de JavaScript usen Node 24 internamente
+# Obliga a los bloques internos de GitHub a correr usando Node 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -29,10 +29,11 @@ jobs:
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: node index.js
-      
-- name: Diagnóstico directo de Webhook
+
+    - name: Diagnóstico directo de Webhook (Prueba Curl)
       run: |
+        echo "Lanzando petición de prueba directa desde la consola de Ubuntu..."
         curl -H "Content-Type: application/json" \
              -X POST \
-             -d '{"content": "🚨 ¡Prueba de conexión directa desde GitHub Actions exitosa!"}' \
+             -d '{"content": "🚨 ¡Prueba de conexión directa usando Curl desde los servidores de GitHub exitosa!"}' \
              ${{ secrets.DISCORD_WEBHOOK_URL }}
