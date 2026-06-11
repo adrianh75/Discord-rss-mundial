@@ -29,3 +29,10 @@ jobs:
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: node index.js
+      
+- name: Diagnóstico directo de Webhook
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d '{"content": "🚨 ¡Prueba de conexión directa desde GitHub Actions exitosa!"}' \
+             ${{ secrets.DISCORD_WEBHOOK_URL }}
