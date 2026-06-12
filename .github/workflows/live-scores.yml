@@ -5,7 +5,6 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
-# Obliga a los bloques internos de GitHub a correr usando Node 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -23,17 +22,9 @@ jobs:
         node-version: '24'
 
     - name: Instalar dependencias
-      run: npm install axios
+      run: npm install
 
     - name: Ejecutar monitor de partidos
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: node index.js
-
-    - name: Diagnóstico directo de Webhook (Prueba Curl)
-      run: |
-        echo "Lanzando petición de prueba directa desde la consola de Ubuntu..."
-        curl -H "Content-Type: application/json" \
-             -X POST \
-             -d '{"content": "🚨 ¡Prueba de conexión directa usando Curl desde los servidores de GitHub exitosa!"}' \
-             ${{ secrets.DISCORD_WEBHOOK_URL }}
