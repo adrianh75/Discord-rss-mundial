@@ -1,7 +1,8 @@
 const https = require('https');
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
-const FOOTBALL_API_URL = 'https://worldcupjson.net/matches/current';
+// Cambiamos al endpoint de todo el día para evitar desfases de caché
+const FOOTBALL_API_URL = 'https://worldcupjson.net/matches/today';
 
 // Convierte códigos ISO de 2 letras en emojis de banderas
 function getFlagByCode(countryCode) {
@@ -11,7 +12,7 @@ function getFlagByCode(countryCode) {
 }
 
 // Función auxiliar para hacer peticiones GET asíncronas
-function fetchLiveMatches() {
+function fetchTodayMatches() {
   return new Promise((resolve, reject) => {
     https.get(FOOTBALL_API_URL, (res) => {
       let data = '';
@@ -55,25 +56,34 @@ function sendWebhook(payload) {
 }
 
 async function main() {
-  console.log("📡 Consultando partidos en vivo en la API...");
+  console.log("📡 Consultando la agenda de partidos de hoy...");
   
   try {
-    const matches = await fetchLiveMatches() || [];
-    console.log(`Partidos en vivo detectados actualmente: ${matches.length}`);
+    const matches = await fetchTodayMatches() || [];
+    
+    // Filtramos ÚNICAMENTE los partidos que estén activamente en juego (en vivo o entretiempo)
+    const liveMatches = matches.filter(match => 
+      match.status === 'in_progress' || 
+      match.status === 'live'
+    );
 
-    if (matches.length === 0) {
-      console.log("📭 No hay partidos 'Live' en este momento. Terminando ejecución silenciosamente.");
+    console.log(`Partidos en vivo detectados hoy: ${liveMatches.length}`);
+
+    if (liveMatches.length === 0) {
+      console.log("📭 No hay partidos en juego en este momento. Terminando ejecución.");
       return;
     }
 
-    // Procesar cada partido que la API reporte como activo
-    for (const match of matches) {
+    // Procesar cada partido que esté corriendo en vivo
+    for (const match of liveMatches) {
       const homeTeam = match.home_team?.name || "Local";
       const awayTeam = match.away_team?.name || "Visitante";
       const currentScore = `${match.home_team?.goals || 0} - ${match.away_team?.goals || 0}`;
-      const minute = match.time || "En juego";
       
-      // Intentar extraer los códigos de país de la API (usa códigos de 2 letras como MX, ZA, CR)
+      // Si la API no tiene el minuto exacto, ponemos un texto amigable
+      const minute = match.time ? `${match.time}` : "En juego";
+      
+      // Extraemos códigos de país (ej: KR, CZ)
       const homeCode = match.home_team?.country || "⚽";
       const awayCode = match.away_team?.country || "⚽";
       const stage = match.stage_name || "Fase de Grupos";
@@ -86,7 +96,7 @@ async function main() {
         embeds: [{
           title: "⚽ ¡PARTIDO EN VIVO EN EL MUNDIAL!",
           description: `**${stage}**`,
-          color: 15158332, // Rojo estético
+          color: 15158332,
           fields: [
             {
               name: "Encuentro",
@@ -101,7 +111,7 @@ async function main() {
       };
 
       await sendWebhook(embedPayload);
-      console.log(`✅ Tarjeta enviada para el encuentro: ${homeTeam} vs ${awayTeam}`);
+      console.log(`✅ Tarjeta enviada: ${homeTeam} vs ${awayTeam}`);
     }
 
   } catch (err) {
