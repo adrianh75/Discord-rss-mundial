@@ -1,7 +1,7 @@
 const https = require('https');
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
-// API espejo global ultra-rápida para capturar los goles reales del Mundial 2026
+// Endpoint dinámico que incluye el desglose de eventos en tiempo real
 const LIVE_API_URL = 'https://worldcup-json-2026.vercel.app/api/current';
 
 function getFlagByCode(countryCode) {
@@ -16,11 +16,7 @@ function fetchScores() {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          resolve(null); // Si falla el parseo, retornamos null para activar el respaldo
-        }
+        try { resolve(JSON.parse(data)); } catch (e) { resolve(null); }
       });
     }).on('error', () => { resolve(null); });
   });
@@ -30,7 +26,6 @@ function sendWebhook(payload) {
   return new Promise((resolve) => {
     const data = JSON.stringify(payload);
     const url = new URL(DISCORD_WEBHOOK_URL);
-
     const options = {
       hostname: url.hostname,
       path: url.pathname + url.search,
@@ -40,7 +35,6 @@ function sendWebhook(payload) {
         'Content-Length': Buffer.byteLength(data)
       }
     };
-
     const req = https.request(options, () => { resolve(); });
     req.on('error', () => { resolve(); });
     req.write(data);
@@ -49,56 +43,70 @@ function sendWebhook(payload) {
 }
 
 async function main() {
-  console.log("📡 Conectando a la central de marcadores en vivo...");
-  
+  console.log("📡 Escaneando eventos del Mundial en tiempo real...");
   const apiData = await fetchScores();
-  
-  // Valores por defecto (Respaldo inteligente si la API demora en responder)
-  let homeTeam = "Korea Republic";
-  let awayTeam = "Czech Republic";
-  let score = "2 - 1"; // Ajustamos al marcador real actual que viste
-  let minute = "En Juego";
-  let homeCode = "KR";
-  let awayCode = "CZ";
 
-  // Si la API responde con éxito, extraemos los goles dinámicos de la cancha
-  if (apiData && apiData.matches && apiData.matches.length > 0) {
-    const currentMatch = apiData.matches.find(m => 
-      m.home_team?.name.toLowerCase().includes('korea') || 
-      m.away_team?.name.toLowerCase().includes('czech')
-    ) || apiData.matches[0];
-
-    if (currentMatch) {
-      homeTeam = currentMatch.home_team?.name || homeTeam;
-      awayTeam = currentMatch.away_team?.name || awayTeam;
-      score = `${currentMatch.home_team?.goals} - ${currentMatch.away_team?.goals}`;
-      minute = currentMatch.time ? `⏱️ ${currentMatch.time}` : minute;
-      homeCode = currentMatch.home_team?.country || homeCode;
-      awayCode = currentMatch.away_team?.country || awayCode;
-    }
+  if (!apiData || !apiData.matches || apiData.matches.length === 0) {
+    console.log("📭 No hay partidos reportados por la API en este instante.");
+    return;
   }
 
-  const embedPayload = {
-    username: "Mundial 2026",
-    embeds: [{
-      title: "⚽ ¡PARTIDO EN VIVO EN EL MUNDIAL!",
-      description: "**Fase de Grupos • Grupo B**",
-      color: 15158332,
-      fields: [
-        {
-          name: "Encuentro",
-          value: `${getFlagByCode(homeCode)} **${homeTeam}** vs. **${awayTeam}** ${getFlagByCode(awayCode)}`,
-          inline: false
-        },
-        { name: "Marcador", value: `**${score}**`, inline: true },
-        { name: "Minuto", value: `⏱️ **${minute}**`, inline: true }
-      ],
-      timestamp: new Date()
-    }]
-  };
+  // Buscamos cualquier partido activo en la jornada
+  for (const match of apiData.matches) {
+    const status = match.status?.toLowerCase() || '';
+    const homeTeam = match.home_team?.name || "Local";
+    const awayTeam = match.away_team?.name || "Visitante";
+    const score = `${match.home_team?.goals || 0} - ${match.away_team?.goals || 0}`;
+    const minute = match.time || "En Juego";
+    
+    const homeCode = match.home_team?.country || "⚽";
+    const awayCode = match.away_team?.country || "⚽";
+    const stage = match.stage_name || "Fase de Grupos";
 
-  await sendWebhook(embedPayload);
-  console.log("✅ ¡Proceso completado con éxito!");
+    // Detectar si hubo un gol en la última ventana de 5 minutos
+    // La API mapea los eventos recientes en un array; verificamos el último minuto de gol registrado
+    const lastEventMinute = match.last_goal_minute || 0;
+    const currentMatchMinute = parseInt(minute.replace(/[^0-9]/g, '')) || 0;
+    
+    // Margen de tiempo para saber si el gol acaba de pasar dentro del ciclo del cron (5 min)
+    const isNewGoal = currentMatchMinute > 0 && lastEventMinute > 0 && (currentMatchMinute - lastEventMinute <= 5);
+    const isFullTime = status === 'completed' || status === 'full_time' || status === 'finalizado';
+
+    // CONDICIÓN CRÍTICA: Solo notificamos si acaba de caer un gol o si el partido terminó
+    if (isNewGoal || isFullTime) {
+      let title = "⚽ ¡GOOOOOL EN EL MUNDIAL!";
+      let color = 3066993; // Verde para goles
+
+      if (isFullTime) {
+        title = "🏁 ¡RESULTADO FINAL DEL PARTIDO!";
+        color = 15158332; // Rojo/Gris oscuro para el cierre del encuentro
+      }
+
+      const embedPayload = {
+        username: "Mundial 2026",
+        embeds: [{
+          title: title,
+          description: `**${stage}**`,
+          color: color,
+          fields: [
+            {
+              name: "Encuentro",
+              value: `${getFlagByCode(homeCode)} **${homeTeam}** vs. **${awayTeam}** ${getFlagByCode(awayCode)}`,
+              inline: false
+            },
+            { name: "Marcador Actual", value: `**${score}**`, inline: true },
+            { name: "Minuto", value: isFullTime ? "⏱️ **Fin del Partido**" : `⏱️ **${minute}**`, inline: true }
+          ],
+          timestamp: new Date()
+        }]
+      };
+
+      await sendWebhook(embedPayload);
+      console.log(`✅ Notificación enviada con éxito para ${homeTeam} vs ${awayTeam}`);
+    } else {
+      console.log(`🤫 El partido ${homeTeam} vs ${awayTeam} sigue en curso (${score}), pero no se registran goles nuevos en este ciclo.`);
+    }
+  }
 }
 
 main();
